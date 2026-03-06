@@ -16,6 +16,8 @@ const linksList = document.getElementById("linksList");
 const refreshLinksBtn = document.getElementById("refreshLinksBtn");
 const errorToast = document.getElementById("errorToast");
 const successToast = document.getElementById("successToast");
+const qrCodeImage = document.getElementById("qrCodeImage");
+const downloadQrBtn = document.getElementById("downloadQrBtn");
 
 // Event Listeners
 shortenForm.addEventListener("submit", handleShortenURL);
@@ -23,6 +25,7 @@ copyBtn.addEventListener("click", copyToClipboard);
 newLinkBtn.addEventListener("click", resetForm);
 advancedToggle.addEventListener("click", toggleAdvancedOptions);
 refreshLinksBtn.addEventListener("click", loadAllLinks);
+downloadQrBtn.addEventListener("click", downloadQrCode);
 
 // Initialize
 loadAllLinks();
@@ -75,6 +78,16 @@ function displayResult(data) {
   document.getElementById("createdTime").textContent = now;
   document.getElementById("clickCount").textContent = "0";
 
+  // Display QR code
+  if (data.qr_code) {
+    qrCodeImage.src = data.qr_code;
+    qrCodeImage.style.display = "block";
+  }
+
+  // Store the short ID for download
+  window.currentQrPath = data.qr_code;
+  window.currentShortId = data.short_id;
+
   resultSection.hidden = false;
   shortenForm.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
@@ -103,7 +116,25 @@ function resetForm() {
   if (!advancedContent.hidden) {
     toggleAdvancedOptions();
   }
+  qrCodeImage.src = "";
+  window.currentQrPath = null;
+  window.currentShortId = null;
   urlInput.focus();
+}
+
+function downloadQrCode() {
+  if (!window.currentQrPath || !window.currentShortId) {
+    showError("No QR code to download");
+    return;
+  }
+
+  const link = document.createElement("a");
+  link.href = window.currentQrPath;
+  link.download = `qr-${window.currentShortId}.png`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  showSuccess("QR code downloaded!");
 }
 
 function toggleAdvancedOptions() {
@@ -142,9 +173,14 @@ function displayLinksList(links) {
                 <a href="http://localhost:5000/${link.id}" target="_blank" class="short-link">
                     🔗 ${link.id}
                 </a>
-                <button class="btn-copy-small" onclick="copyLink('http://localhost:5000/${link.id}')">
-                    📋
-                </button>
+                <div class="link-header-buttons">
+                  <button class="btn-qr-icon" onclick="showQrModal('${link.qr_code}', '${link.id}')" title="View QR Code">
+                      📱
+                  </button>
+                  <button class="btn-copy-small" onclick="copyLink('http://localhost:5000/${link.id}')">
+                      📋
+                  </button>
+                </div>
             </div>
             <div class="link-body">
                 <p class="original-url" title="${link.original_url}">
@@ -164,6 +200,40 @@ function displayLinksList(links) {
     `,
     )
     .join("");
+}
+
+function showQrModal(qrPath, shortId) {
+  // Create modal overlay
+  const modal = document.createElement("div");
+  modal.className = "qr-modal-overlay";
+  modal.innerHTML = `
+    <div class="qr-modal">
+      <button class="qr-modal-close" onclick="this.closest('.qr-modal-overlay').remove()">✕</button>
+      <h3>QR Code for ${shortId}</h3>
+      <img src="${qrPath}" alt="QR Code" class="qr-modal-image" />
+      <button class="btn btn-primary" onclick="downloadQrFromModal('${qrPath}', '${shortId}')">
+        ⬇️ Download
+      </button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  // Close modal on overlay click
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) {
+      modal.remove();
+    }
+  });
+}
+
+function downloadQrFromModal(qrPath, shortId) {
+  const link = document.createElement("a");
+  link.href = qrPath;
+  link.download = `qr-${shortId}.png`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  showSuccess("QR code downloaded!");
 }
 
 function copyLink(text) {

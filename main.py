@@ -6,6 +6,8 @@ import os
 import validators
 from datetime import datetime, timedelta
 import threading
+import qrcode
+from pathlib import Path
 
 app = Flask(__name__)
 CORS(app)
@@ -14,6 +16,10 @@ DATABASE = "urls.db"
 BASE62_CHARS = string.digits + string.ascii_lowercase + string.ascii_uppercase
 # Lock for thread-safe ID generation
 id_lock = threading.Lock()
+
+# Create static/qrcodes directory if it doesn't exist
+QRCODE_DIR = Path("static/qrcodes")
+QRCODE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def get_db():
@@ -73,6 +79,31 @@ def get_next_short_id():
 
         next_id = (max_id or 0) + 1
         return base62_encode(next_id)
+
+
+def generate_qr_code(short_url, short_id):
+    """Generate QR code image and save to static/qrcodes directory"""
+    try:
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(short_url)
+        qr.make(fit=True)
+
+        img = qr.make_image(fill_color="black", back_color="white")
+
+        # Save QR code image
+        qr_path = QRCODE_DIR / f"{short_id}.png"
+        img.save(qr_path)
+
+        # Return the relative path for frontend
+        return f"/static/qrcodes/{short_id}.png"
+    except Exception as e:
+        print(f"Error generating QR code: {e}")
+        return None
 
 
 @app.route("/api/shorten", methods=["POST"])
@@ -177,11 +208,16 @@ def shorten_url():
 
         conn.close()
 
+        # Generate QR code for the short URL
+        short_url = f"http://localhost:5000/{short_id}"
+        qr_code_path = generate_qr_code(short_url, short_id)
+
         return jsonify(
             {
                 "short_id": short_id,
                 "original_url": original_url,
-                "short_url": f"http://localhost:5000/{short_id}",
+                "short_url": short_url,
+                "qr_code": qr_code_path,
             }
         ), 201
 
@@ -281,15 +317,18 @@ def get_all_urls():
 
     urls = []
     for row in rows:
+        short_id = row["custom_alias"] or row["short_id"]
+        qr_code_path = f"/static/qrcodes/{short_id}.png"
         urls.append(
             {
-                "id": row["custom_alias"] or row["short_id"],
+                "id": short_id,
                 "short_id": row["short_id"],
                 "custom_alias": row["custom_alias"],
                 "original_url": row["original_url"],
                 "created_at": row["created_at"],
                 "clicks": row["clicks"],
                 "expires_at": row["expires_at"],
+                "qr_code": qr_code_path,
             }
         )
 
