@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>URL Shortener - Shorten Your Links</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔗 URL Shortener</h1>
+            <p>Create short, shareable links in seconds</p>
+        </header>
+        
+        <main>
+            <!-- Shorten URL Section -->
+            <section class="section shorten-section">
+                <h2>Shorten a Link</h2>
+                <form id="shortenForm" class="form">
+                    <div class="form-group">
+                        <label for="urlInput">Enter your long URL</label>
+                        <input 
+                            type="url" 
+                            id="urlInput" 
+                            placeholder="https://example.com/very/long/path"
+                            required
+                        >
+                    </div>
+                    
+                    <div class="advanced-options">
+                        <button type="button" class="toggle-btn" id="advancedToggle">
+                            ⚙️ Advanced Options
+                        </button>
+                        <div id="advancedContent" class="advanced-content" hidden>
+                            <div class="form-group">
+                                <label for="customAlias">Custom Alias (Optional)</label>
+                                <input 
+                                    type="text" 
+                                    id="customAlias" 
+                                    placeholder="my-custom-link"
+                                >
+                                <small>Use only letters, numbers, and hyphens</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="expiration">Link Expiration</label>
+                                <select id="expiration">
+                                    <option value="0">Never Expires</option>
+                                    <option value="1">1 Hour</option>
+                                    <option value="24">1 Day</option>
+                                    <option value="168">1 Week</option>
+                                    <option value="720">30 Days</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">Shorten URL</button>
+                </form>
+            </section>
+            
+            <!-- Result Section -->
+            <section id="resultSection" class="section result-section" hidden>
+                <h2>Your Shortened URL</h2>
+                <div class="result-box">
+                    <div class="result-item">
+                        <label>Short URL:</label>
+                        <div class="result-display">
+                            <input 
+                                type="text" 
+                                id="shortUrlDisplay" 
+                                readonly
+                                class="result-input"
+                            >
+                            <button id="copyBtn" class="btn btn-copy">📋 Copy</button>
+                        </div>
+                    </div>
+                    
+                    <div class="result-item">
+                        <label>Original URL:</label>
+                        <div class="result-display">
+                            <input 
+                                type="text" 
+                                id="originalUrlDisplay" 
+                                readonly
+                                class="result-input"
+                            >
+                        </div>
+                    </div>
+                    
+                    <div class="result-stats">
+                        <div class="stat">
+                            <span class="stat-label">Created:</span>
+                            <span class="stat-value" id="createdTime">-</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-label">Clicks:</span>
+                            <span class="stat-value" id="clickCount">0</span>
+                        </div>
+                    </div>
+                </div>
+                <button id="newLinkBtn" class="btn btn-secondary">Create Another</button>
+            </section>
+            
+            <!-- All Links Section -->
+            <section class="section links-history">
+                <h2>Recent Links</h2>
+                <button id="refreshLinksBtn" class="btn btn-small">🔄 Refresh</button>
+                <div id="linksList" class="links-list">
+                    <p class="empty-state">No links created yet. Create your first shortened URL above!</p>
+                </div>
+            </section>
+        </main>
+        
+        <!-- Error Toast -->
+        <div id="errorToast" class="toast toast-error" hidden></div>
+        <!-- Success Toast -->
+        <div id="successToast" class="toast toast-success" hidden></div>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html>
