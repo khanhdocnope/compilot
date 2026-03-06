@@ -210,7 +210,7 @@ def shorten_url():
 
         # Generate QR code for the short URL
        
-        short_url = f"https://rut-gon-link.onrender.com/{short_id}"
+        short_url = f"http://localhost:5000/{short_id}"
         qr_code_path = generate_qr_code(short_url, short_id)
 
         return jsonify(

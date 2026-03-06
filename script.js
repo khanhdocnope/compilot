@@ -1,4 +1,4 @@
-const API_BASE = "https://rut-gon-link.onrender.com/api"; 
+const API_BASE = "http://localhost:5000/api"; 
 
 // DOM Elements
 const shortenForm = document.getElementById("shortenForm");
