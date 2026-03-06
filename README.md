@@ -353,3 +353,126 @@ For issues or questions:
 ---
 
 **Happy shortening! 🎉**
+
+
+🔗 Dự án Rút gọn URL
+Một ứng dụng rút gọn URL đầy đủ tính năng (full-stack) với giao diện web hiện đại và backend sử dụng Flask.
+
+Tính năng ✨
+Tính năng cốt lõi
+Rút gọn URL: Chuyển đổi các URL dài thành các liên kết ngắn gọn, dễ chia sẻ.
+
+Mã hóa Base62: Tạo mã ngắn chuyên nghiệp.
+
+Theo dõi lượt nhấp: Giám sát số lần mỗi liên kết được truy cập.
+
+Bí danh tùy chỉnh: Tự chọn mã ngắn theo ý muốn của bạn.
+
+Tính năng nâng cao
+Hạn dùng liên kết: Thiết lập thời gian tồn tại cho URL (từ 1 giờ đến 30 ngày).
+
+Bảng điều khiển phân tích: Xem tất cả các liên kết đã tạo và số liệu thống kê của chúng.
+
+Thống kê thời gian thực: Theo dõi ngày tạo và số lượt nhấp.
+
+Thiết kế thích ứng (Responsive): Giao diện đẹp mắt, hoạt động tốt trên mọi thiết bị.
+
+Cấu trúc dự án 📁
+gitcompilot/
+├── main.py              # Máy chủ Flask backend
+├── index.html           # Giao diện người dùng (Frontend)
+├── script.js            # Logic JavaScript
+├── style.css            # Định dạng giao diện (CSS)
+├── requirements.txt     # Các thư viện Python cần thiết
+├── urls.db              # Cơ sở dữ liệu SQLite (tự động tạo khi chạy lần đầu)
+└── README.md            # Tệp hướng dẫn này
+Cách thức hoạt động 🔧
+1. Quy trình rút gọn URL
+Dữ liệu nhập: "https://example.com/duong/dan/rat/dai?param=value"
+         ↓
+    Xử lý tại Backend (Mã hóa Base62)
+         ↓
+    Lưu trữ Database: {"aB7k2": "https://..."}
+         ↓
+Dữ liệu xuất: "http://localhost:5000/aB7k2"
+2. Cấu trúc Cơ sở dữ liệu
+Bảng urls:
+├── id (INTEGER, Khóa chính)
+├── original_url (TEXT)
+├── short_id (TEXT, Duy nhất)
+├── custom_alias (TEXT, Duy nhất, Tùy chọn)
+├── created_at (TIMESTAMP)
+├── expires_at (TIMESTAMP, Tùy chọn)
+└── clicks (INTEGER)
+Bắt đầu sử dụng 🚀
+Yêu cầu hệ thống
+Python 3.7 trở lên
+
+pip (Trình quản lý gói của Python)
+
+Cài đặt
+Tải dự án về máy
+
+Bash
+cd gitcompilot
+Cài đặt các thư viện phụ thuộc
+
+Bash
+pip install -r requirements.txt
+Chạy máy chủ Flask
+
+Bash
+python main.py
+Mở trên trình duyệt
+Truy cập địa chỉ: http://localhost:5000
+
+Hướng dẫn sử dụng 📖
+Rút gọn cơ bản
+Dán URL dài vào ô nhập liệu.
+
+Nhấn "Rút gọn URL".
+
+Sao chép liên kết ngắn được tạo ra.
+
+Tùy chọn nâng cao
+Nhấn vào "⚙️ Tùy chọn nâng cao".
+
+Bí danh tùy chỉnh: Nhập mã ngắn riêng của bạn (ví dụ: "du-an-cua-toi").
+
+Hạn dùng liên kết: Chọn thời điểm liên kết sẽ hết hiệu lực.
+
+Xem thống kê
+Liên kết gần đây: Xem danh sách các liên kết đã tạo trên bảng điều khiển.
+
+Lượt nhấp: Theo dõi số lần liên kết được sử dụng.
+
+Các điểm cuối API (Endpoints) 🔌
+POST /api/shorten
+Tạo một URL rút gọn.
+
+Yêu cầu (Request):
+
+JSON
+{
+  "url": "https://example.com/path",
+  "custom_alias": "link-cua-toi",
+  "expiration_hours": 24
+}
+GET /api/all
+Lấy danh sách tất cả các URL đã rút gọn.
+
+Công nghệ sử dụng 💻
+Backend: Flask (Python), SQLite3.
+
+Frontend: HTML5, CSS3, Vanilla JavaScript.
+
+Bảo mật 🔒
+Phiên bản hiện tại (An toàn cho môi trường phát triển):
+
+Kiểm tra tính hợp lệ của URL đầu vào.
+
+Chống tấn công SQL injection (truy vấn có tham số).
+
+Kiểm tra tính hợp lệ của bí danh tùy chỉnh.
+
+Chúc bạn rút gọn liên kết vui vẻ! 🎉
