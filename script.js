@@ -38,7 +38,7 @@ async function handleShortenURL(e) {
   const expirationHours = parseInt(expirationSelect.value);
 
   if (!url) {
-    showError("Please enter a URL");
+    showError("Vui lòng nhập một URL");
     return;
   }
 
@@ -57,15 +57,15 @@ async function handleShortenURL(e) {
 
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(errorData.error || "Failed to shorten URL");
+      throw new Error(errorData.error || "Không thể rút gọn URL");
     }
 
     const data = await response.json();
     displayResult(data);
-    showSuccess("URL shortened successfully!");
+    showSuccess("Rút gọn URL thành công!");
     loadAllLinks();
   } catch (error) {
-    console.error("Error:", error);
+    console.error("Lỗi:", error);
     showError(error.message);
   }
 }
@@ -74,7 +74,7 @@ function displayResult(data) {
   shortUrlDisplay.value = data.short_url;
   originalUrlDisplay.value = data.original_url;
 
-  const now = new Date().toLocaleString();
+  const now = new Date().toLocaleString("vi-VN");
   document.getElementById("createdTime").textContent = now;
   document.getElementById("clickCount").textContent = "0";
 
@@ -98,13 +98,13 @@ function copyToClipboard() {
     .writeText(text)
     .then(() => {
       const originalText = copyBtn.textContent;
-      copyBtn.textContent = "✅ Copied!";
+      copyBtn.textContent = "✅ Đã sao chép!";
       setTimeout(() => {
         copyBtn.textContent = originalText;
       }, 2000);
     })
     .catch((err) => {
-      showError("Failed to copy to clipboard");
+      showError("Không thể sao chép vào bộ nhớ tạm");
     });
 }
 
@@ -124,7 +124,7 @@ function resetForm() {
 
 function downloadQrCode() {
   if (!window.currentQrPath || !window.currentShortId) {
-    showError("No QR code to download");
+    showError("Không có mã QR để tải xuống");
     return;
   }
 
@@ -134,7 +134,7 @@ function downloadQrCode() {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-  showSuccess("QR code downloaded!");
+  showSuccess("Đã tải mã QR xuống!");
 }
 
 function toggleAdvancedOptions() {
@@ -147,21 +147,22 @@ async function loadAllLinks() {
     const response = await fetch(`${API_BASE}/all`);
 
     if (!response.ok) {
-      throw new Error("Failed to load links");
+      throw new Error("Không thể tải danh sách liên kết");
     }
 
     const links = await response.json();
     displayLinksList(links);
   } catch (error) {
-    console.error("Error:", error);
-    linksList.innerHTML = '<p class="error">Failed to load links</p>';
+    console.error("Lỗi:", error);
+    linksList.innerHTML =
+      '<p class="error">Không thể tải danh sách liên kết</p>';
   }
 }
 
 function displayLinksList(links) {
   if (links.length === 0) {
     linksList.innerHTML =
-      '<p class="empty-state">No links created yet. Create your first shortened URL above!</p>';
+      '<p class="empty-state">Chưa có liên kết nào được tạo. Hãy tạo URL rút gọn đầu tiên ở trên!</p>';
     return;
   }
 
@@ -174,7 +175,7 @@ function displayLinksList(links) {
                     🔗 ${link.id}
                 </a>
                 <div class="link-header-buttons">
-                  <button class="btn-qr-icon" onclick="showQrModal('${link.qr_code}', '${link.id}')" title="View QR Code">
+                  <button class="btn-qr-icon" onclick="showQrModal('${link.qr_code}', '${link.id}')" title="Xem mã QR">
                       📱
                   </button>
                   <button class="btn-copy-small" onclick="copyLink('http://localhost:5000/${link.id}')">
@@ -191,7 +192,7 @@ function displayLinksList(links) {
                         📅 ${formatDate(link.created_at)}
                     </span>
                     <span class="meta-item">
-                        👆 ${link.clicks} clicks
+                        👆 ${link.clicks} lượt nhấp
                     </span>
                     ${link.expires_at ? `<span class="meta-item">⏰ ${formatExpiry(link.expires_at)}</span>` : ""}
                 </div>
@@ -209,10 +210,10 @@ function showQrModal(qrPath, shortId) {
   modal.innerHTML = `
     <div class="qr-modal">
       <button class="qr-modal-close" onclick="this.closest('.qr-modal-overlay').remove()">✕</button>
-      <h3>QR Code for ${shortId}</h3>
-      <img src="${qrPath}" alt="QR Code" class="qr-modal-image" />
+      <h3>Mã QR cho ${shortId}</h3>
+      <img src="${qrPath}" alt="Mã QR" class="qr-modal-image" />
       <button class="btn btn-primary" onclick="downloadQrFromModal('${qrPath}', '${shortId}')">
-        ⬇️ Download
+        ⬇️ Tải xuống
       </button>
     </div>
   `;
@@ -233,26 +234,26 @@ function downloadQrFromModal(qrPath, shortId) {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-  showSuccess("QR code downloaded!");
+  showSuccess("Đã tải mã QR xuống!");
 }
 
 function copyLink(text) {
   navigator.clipboard
     .writeText(text)
     .then(() => {
-      showSuccess("Link copied to clipboard!");
+      showSuccess("Đã sao chép liên kết!");
     })
     .catch((err) => {
-      showError("Failed to copy link");
+      showError("Không thể sao chép liên kết");
     });
 }
 
 function formatDate(dateString) {
   const date = new Date(dateString);
   return (
-    date.toLocaleDateString() +
+    date.toLocaleDateString("vi-VN") +
     " " +
-    date.toLocaleTimeString([], {
+    date.toLocaleTimeString("vi-VN", {
       hour: "2-digit",
       minute: "2-digit",
     })
@@ -265,16 +266,16 @@ function formatExpiry(expiryString) {
   const diff = expiry - now;
 
   if (diff < 0) {
-    return "Expired";
+    return "Đã hết hạn";
   }
 
   const hours = Math.floor(diff / (1000 * 60 * 60));
   if (hours < 24) {
-    return `Expires in ${hours}h`;
+    return `Hết hạn sau ${hours} giờ`;
   }
 
   const days = Math.floor(hours / 24);
-  return `Expires in ${days}d`;
+  return `Hết hạn sau ${days} ngày`;
 }
 
 function showError(message) {

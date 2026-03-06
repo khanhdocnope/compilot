@@ -1,71 +1,71 @@
 <!doctype html>
-<html lang="en">
+<html lang="vi">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>URL Shortener - Shorten Your Links</title>
+    <title>Rút Gọn URL - Rút Gọn Liên Kết Của Bạn</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <div class="container">
       <header>
-        <h1>🔗 URL Shortener</h1>
-        <p>Create short, shareable links in seconds</p>
+        <h1>🔗 Rút Gọn URL</h1>
+        <p>Tạo các liên kết ngắn gọn, dễ chia sẻ trong vài giây</p>
       </header>
 
       <main>
-        <!-- Shorten URL Section -->
         <section class="section shorten-section">
-          <h2>Shorten a Link</h2>
+          <h2>Rút Gọn Liên Kết</h2>
           <form id="shortenForm" class="form">
             <div class="form-group">
-              <label for="urlInput">Enter your long URL</label>
+              <label for="urlInput">Nhập URL dài của bạn</label>
               <input
                 type="url"
                 id="urlInput"
-                placeholder="https://example.com/very/long/path"
+                placeholder="https://example.com/duong/dan/rat/dai"
                 required
               />
             </div>
 
             <div class="advanced-options">
               <button type="button" class="toggle-btn" id="advancedToggle">
-                ⚙️ Advanced Options
+                ⚙️ Tùy Chọn Nâng Cao
               </button>
               <div id="advancedContent" class="advanced-content" hidden>
                 <div class="form-group">
-                  <label for="customAlias">Custom Alias (Optional)</label>
+                  <label for="customAlias"
+                    >Bí Danh Tùy Chỉnh (Không bắt buộc)</label
+                  >
                   <input
                     type="text"
                     id="customAlias"
-                    placeholder="my-custom-link"
+                    placeholder="lien-ket-tuy-chinh"
                   />
-                  <small>Use only letters, numbers, and hyphens</small>
+                  <small>Chỉ sử dụng chữ cái, số và dấu gạch ngang</small>
                 </div>
 
                 <div class="form-group">
-                  <label for="expiration">Link Expiration</label>
+                  <label for="expiration">Hạn Sử Dụng Liên Kết</label>
                   <select id="expiration">
-                    <option value="0">Never Expires</option>
-                    <option value="1">1 Hour</option>
-                    <option value="24">1 Day</option>
-                    <option value="168">1 Week</option>
-                    <option value="720">30 Days</option>
+                    <option value="0">Không Bao Giờ Hết Hạn</option>
+                    <option value="1">1 Giờ</option>
+                    <option value="24">1 Ngày</option>
+                    <option value="168">1 Tuần</option>
+                    <option value="720">30 Ngày</option>
                   </select>
                 </div>
               </div>
             </div>
 
-            <button type="submit" class="btn btn-primary">Shorten URL</button>
+            <button type="submit" class="btn btn-primary">Rút Gọn URL</button>
           </form>
         </section>
 
-        <!-- Result Section -->
         <section id="resultSection" class="section result-section" hidden>
-          <h2>Your Shortened URL</h2>
+          <h2>URL Đã Rút Gọn Của Bạn</h2>
           <div class="result-box">
             <div class="result-item">
-              <label>Short URL:</label>
+              <label>URL Ngắn:</label>
               <div class="result-display">
                 <input
                   type="text"
@@ -73,12 +73,12 @@
                   readonly
                   class="result-input"
                 />
-                <button id="copyBtn" class="btn btn-copy">📋 Copy</button>
+                <button id="copyBtn" class="btn btn-copy">📋 Sao Chép</button>
               </div>
             </div>
 
             <div class="result-item">
-              <label>Original URL:</label>
+              <label>URL Gốc:</label>
               <div class="result-display">
                 <input
                   type="text"
@@ -91,45 +91,43 @@
 
             <div class="result-stats">
               <div class="stat">
-                <span class="stat-label">Created:</span>
+                <span class="stat-label">Đã tạo:</span>
                 <span class="stat-value" id="createdTime">-</span>
               </div>
               <div class="stat">
-                <span class="stat-label">Clicks:</span>
+                <span class="stat-label">Lượt nhấp:</span>
                 <span class="stat-value" id="clickCount">0</span>
               </div>
             </div>
 
             <div class="qr-section">
-              <h3>QR Code</h3>
+              <h3>Mã QR</h3>
               <div class="qr-container">
-                <img id="qrCodeImage" src="" alt="QR Code" class="qr-image" />
+                <img id="qrCodeImage" src="" alt="Mã QR" class="qr-image" />
               </div>
               <button id="downloadQrBtn" class="btn btn-download">
-                ⬇️ Download QR
+                ⬇️ Tải Xuống QR
               </button>
             </div>
           </div>
           <button id="newLinkBtn" class="btn btn-secondary">
-            Create Another
+            Tạo Liên Kết Khác
           </button>
         </section>
 
-        <!-- All Links Section -->
         <section class="section links-history">
-          <h2>Recent Links</h2>
-          <button id="refreshLinksBtn" class="btn btn-small">🔄 Refresh</button>
+          <h2>Các Liên Kết Gần Đây</h2>
+          <button id="refreshLinksBtn" class="btn btn-small">🔄 Làm Mới</button>
           <div id="linksList" class="links-list">
             <p class="empty-state">
-              No links created yet. Create your first shortened URL above!
+              Chưa có liên kết nào được tạo. Hãy tạo URL rút gọn đầu tiên của
+              bạn ở trên!
             </p>
           </div>
         </section>
       </main>
 
-      <!-- Error Toast -->
       <div id="errorToast" class="toast toast-error" hidden></div>
-      <!-- Success Toast -->
       <div id="successToast" class="toast toast-success" hidden></div>
     </div>
 
