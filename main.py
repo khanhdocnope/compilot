@@ -51,7 +51,16 @@ def init_db():
     conn.close()
 
 
-init_db()
+# Initialize database on startup, but don't fail if connection not ready
+def safe_init_db():
+    try:
+        init_db()
+    except Exception as e:
+        print(f"Database initialization deferred: {e}")
+
+
+# Try to initialize on startup
+safe_init_db()
 
 
 def encode_base62(num):
@@ -74,8 +83,10 @@ def generate_qr_code(url):
     return f"data:image/png;base64,{qr_base64}"
 
 
-@app.route("/shorten", methods=["POST"])
+@app.route("/api/shorten", methods=["POST"])
 def shorten_url():
+    # Ensure database is initialized
+    safe_init_db()
     data = request.json
     original_url = data.get("url")
     custom_alias = data.get("custom_alias")
@@ -84,109 +95,136 @@ def shorten_url():
     if not original_url or not validators.url(original_url):
         return jsonify({"error": "URL không hợp lệ"}), 400
 
-    conn = get_db()
-    cursor = conn.cursor()
+    conn = None
+    cursor = None
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
 
-    if custom_alias:
-        cursor.execute("SELECT id FROM urls WHERE custom_alias = %s", (custom_alias,))
-        if cursor.fetchone():
-            cursor.close()
-            conn.close()
-            return jsonify({"error": "Alias đã tồn tại"}), 400
-        short_id = custom_alias
-    else:
-        with id_lock:
+        if custom_alias:
+            cursor.execute("SELECT id FROM urls WHERE custom_alias = %s", (custom_alias,))
+            if cursor.fetchone():
+                cursor.close()
+                conn.close()
+                return jsonify({"error": "Alias đã tồn tại"}), 400
+            short_id = custom_alias
+        else:
+            with id_lock:
+                cursor.execute(
+                    "INSERT INTO urls (original_url) VALUES (%s) RETURNING id",
+                    (original_url,),
+                )
+                last_id = cursor.fetchone()["id"]
+                short_id = encode_base62(last_id + 100000)
+                cursor.execute(
+                    "UPDATE urls SET short_id = %s WHERE id = %s", (short_id, last_id)
+                )
+
+        expires_at = None
+        if expire_hours:
+            expires_at = (datetime.now() + timedelta(hours=int(expire_hours))).isoformat()
             cursor.execute(
-                "INSERT INTO urls (original_url) VALUES (%s) RETURNING id",
-                (original_url,),
-            )
-            last_id = cursor.fetchone()["id"]
-            short_id = encode_base62(last_id + 100000)
-            cursor.execute(
-                "UPDATE urls SET short_id = %s WHERE id = %s", (short_id, last_id)
+                "UPDATE urls SET expires_at = %s WHERE short_id = %s",
+                (expires_at, short_id),
             )
 
-    expires_at = None
-    if expire_hours:
-        expires_at = (datetime.now() + timedelta(hours=int(expire_hours))).isoformat()
-        cursor.execute(
-            "UPDATE urls SET expires_at = %s WHERE short_id = %s",
-            (expires_at, short_id),
+        conn.commit()
+
+        # Tạo QR code dưới dạng Base64 (Để tránh mất file trên Render)
+        full_short_url = f"{request.host_url}{short_id}"
+        qr_code = generate_qr_code(full_short_url)
+
+        cursor.close()
+        conn.close()
+        return jsonify(
+            {
+                "short_id": short_id,
+                "short_url": full_short_url,
+                "original_url": original_url,
+                "qr_code": qr_code,
+                "expires_at": expires_at,
+            }
         )
-
-    conn.commit()
-
-    # Tạo QR code dưới dạng Base64 (Để tránh mất file trên Render)
-    full_short_url = f"{request.host_url}{short_id}"
-    qr_code = generate_qr_code(full_short_url)
-
-    cursor.close()
-    conn.close()
-    return jsonify(
-        {
-            "short_id": short_id,
-            "short_url": full_short_url,
-            "original_url": original_url,
-            "qr_code": qr_code,
-            "expires_at": expires_at,
-        }
-    )
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        return jsonify({"error": f"Database error: {str(e)}"}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 
 @app.route("/<short_id>")
 def redirect_to_url(short_id):
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT original_url, expires_at FROM urls WHERE short_id = %s OR custom_alias = %s",
-        (short_id, short_id),
-    )
-    row = cursor.fetchone()
+    conn = None
+    cursor = None
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT original_url, expires_at FROM urls WHERE short_id = %s OR custom_alias = %s",
+            (short_id, short_id),
+        )
+        row = cursor.fetchone()
 
-    if not row:
-        cursor.close()
-        conn.close()
-        return "URL không tồn tại", 404
+        if not row:
+            return "URL không tồn tại", 404
 
-    if row["expires_at"] and datetime.fromisoformat(row["expires_at"]) < datetime.now():
-        cursor.close()
-        conn.close()
-        return "Liên kết đã hết hạn", 410
+        if row["expires_at"] and datetime.fromisoformat(row["expires_at"]) < datetime.now():
+            return "Liên kết đã hết hạn", 410
 
-    cursor.execute(
-        "UPDATE urls SET clicks = clicks + 1 WHERE short_id = %s", (short_id,)
-    )
-    conn.commit()
-    cursor.close()
-    conn.close()
-    return redirect(row["original_url"])
+        cursor.execute(
+            "UPDATE urls SET clicks = clicks + 1 WHERE short_id = %s", (short_id,)
+        )
+        conn.commit()
+        original_url = row["original_url"]
+        return redirect(original_url)
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        return f"Error: {str(e)}", 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 
 @app.route("/api/all", methods=["GET"])
 def get_all_urls():
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM urls ORDER BY created_at DESC")
-    rows = cursor.fetchall()
-    cursor.close()
-    conn.close()
+    conn = None
+    cursor = None
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM urls ORDER BY created_at DESC")
+        rows = cursor.fetchall()
 
-    result = []
-    for r in rows:
-        short_url = f"{request.host_url}{r['short_id']}"
-        qr_code = generate_qr_code(short_url)
-        result.append(
-            {
-                "id": r["short_id"],
-                "original_url": r["original_url"],
-                "short_url": short_url,
-                "clicks": r["clicks"],
-                "created_at": r["created_at"],
-                "expires_at": r["expires_at"],
-                "qr_code": qr_code,
-            }
-        )
-    return jsonify(result)
+        result = []
+        for r in rows:
+            short_url = f"{request.host_url}{r['short_id']}"
+            qr_code = generate_qr_code(short_url)
+            result.append(
+                {
+                    "id": r["short_id"],
+                    "original_url": r["original_url"],
+                    "short_url": short_url,
+                    "clicks": r["clicks"],
+                    "created_at": r["created_at"],
+                    "expires_at": r["expires_at"],
+                    "qr_code": qr_code,
+                }
+            )
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": f"Database error: {str(e)}"}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 
 if __name__ == "__main__":
