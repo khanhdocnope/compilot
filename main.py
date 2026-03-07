@@ -20,7 +20,9 @@ CORS(app, resources={r"/*": {"origins": frontend_url}})
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 if not DATABASE_URL:
-    raise ValueError("DATABASE_URL environment variable is required. Please set it on Render.")
+    raise ValueError(
+        "DATABASE_URL environment variable is required. Please set it on Render."
+    )
 BASE62_CHARS = string.digits + string.ascii_lowercase + string.ascii_uppercase
 id_lock = threading.Lock()
 
@@ -51,9 +53,6 @@ def get_db():
     return conn
 
 
-
-
-
 def encode_base62(num):
     if num == 0:
         return BASE62_CHARS[0]
@@ -72,6 +71,7 @@ def generate_qr_code(url):
     qr.save(buffered, format="PNG")
     qr_base64 = base64.b64encode(buffered.getvalue()).decode()
     return f"data:image/png;base64,{qr_base64}"
+
 
 @app.route("/api/shorten", methods=["POST"])
 def shorten_url():
