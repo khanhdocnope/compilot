@@ -1,6 +1,18 @@
 // Dynamically set API base URL
 const API_BASE = window.API_BASE || "/api";
 
+// Cache & Debounce
+let linksCache = null;
+let debounceTimer = null;
+
+// Debounce function
+function debounce(func, delay) {
+  return function (...args) {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => func(...args), delay);
+  };
+}
+
 // DOM Elements
 const shortenForm = document.getElementById("shortenForm");
 const urlInput = document.getElementById("urlInput");
@@ -59,13 +71,26 @@ shortenForm.addEventListener("submit", handleShortenURL);
 copyBtn.addEventListener("click", copyToClipboard);
 newLinkBtn.addEventListener("click", resetForm);
 advancedToggle.addEventListener("click", toggleAdvancedOptions);
-refreshLinksBtn.addEventListener("click", loadAllLinks);
+refreshLinksBtn.addEventListener("click", () => {
+  linksCache = null;
+  loadAllLinks();
+});
 downloadQrBtn.addEventListener("click", downloadQrCode);
 darkModeToggle.addEventListener("click", toggleDarkMode);
 
 // Initialize
 initDarkMode();
 loadAllLinks();
+
+// URL Input validation with debounce
+const validateAndOptimize = debounce(() => {
+  const url = urlInput.value.trim();
+  if (url && !url.startsWith("http")) {
+    urlInput.value = "https://" + url;
+  }
+}, 300);
+
+urlInput.addEventListener("input", validateAndOptimize);
 
 async function handleShortenURL(e) {
   e.preventDefault();
@@ -95,17 +120,24 @@ async function handleShortenURL(e) {
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || "Không thể rút gọn URL");
+      let errorMsg = "Không thể rút gọn URL";
+      try {
+        const errorData = await response.json();
+        errorMsg = errorData.error || errorMsg;
+      } catch {
+        errorMsg = `Lỗi HTTP ${response.status}: ${response.statusText}`;
+      }
+      throw new Error(errorMsg);
     }
 
     const data = await response.json();
     displayResult(data);
     showSuccess("Rút gọn URL thành công! 🎉");
+    linksCache = null; // Invalidate cache
     loadAllLinks();
   } catch (error) {
     console.error("Lỗi:", error);
-    showError(error.message);
+    showError(error.message || "Có lỗi xảy ra. Vui lòng thử lại!");
   } finally {
     hideLoading();
   }
@@ -135,6 +167,10 @@ function displayResult(data) {
 
 function copyToClipboard() {
   const text = shortUrlDisplay.value;
+  if (!text) {
+    showError("Không có URL để sao chép");
+    return;
+  }
   navigator.clipboard
     .writeText(text)
     .then(() => {
@@ -185,18 +221,38 @@ function toggleAdvancedOptions() {
 
 async function loadAllLinks() {
   try {
+    // Use cache if available
+    if (linksCache) {
+      displayLinksList(linksCache);
+      return;
+    }
+
     const response = await fetch(`${API_BASE}/all`);
 
     if (!response.ok) {
-      throw new Error("Không thể tải danh sách liên kết");
+      let errorMsg = "Không thể tải danh sách liên kết";
+      try {
+        const errorData = await response.json();
+        errorMsg = errorData.error || errorMsg;
+      } catch {
+        errorMsg = `Lỗi HTTP ${response.status}: ${response.statusText}`;
+      }
+      throw new Error(errorMsg);
     }
 
     const links = await response.json();
+    linksCache = links; // Cache the results
     displayLinksList(links);
   } catch (error) {
     console.error("Lỗi:", error);
-    linksList.innerHTML =
-      '<p class="empty-state">❌ Không thể tải danh sách liên kết. Vui lòng thử lại!</p>';
+    if (linksCache) {
+      // Show cached data if available
+      displayLinksList(linksCache);
+      showError("⚠️ Đang hiển thị dữ liệu từ bộ nhớ cache");
+    } else {
+      linksList.innerHTML =
+        '<p class="empty-state">❌ Không thể tải danh sách liên kết. Vui lòng thử lại!</p>';
+    }
   }
 }
 
@@ -316,6 +372,10 @@ function downloadQrFromModal(qrPath, shortId) {
 }
 
 function copyLink(text) {
+  if (!text) {
+    showError("Liên kết không hợp lệ");
+    return;
+  }
   navigator.clipboard
     .writeText(text)
     .then(() => {
@@ -373,5 +433,9 @@ function showSuccess(message) {
 }
 
 function getShortUrl(shortId) {
-  return "https://api-rut-gon.onrender.com/" + shortId;
+  if (!shortId || typeof shortId !== "string") {
+    console.error("Invalid shortId:", shortId);
+    return null;
+  }
+  return "https://api-rut-gon.onrender.com/" + encodeURIComponent(shortId);
 }
