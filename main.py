@@ -74,7 +74,7 @@ def generate_qr_code(url):
     return f"data:image/png;base64,{qr_base64}"
 
 
-@app.route("/api/shorten", methods=["POST"])
+@app.route("/shorten", methods=["POST"])
 def shorten_url():
     data = request.json
     original_url = data.get("url")
