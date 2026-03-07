@@ -174,7 +174,7 @@ function displayLinksList(links) {
       (link) => `
         <div class="link-card">
             <div class="link-header">
-                <a href="/${link.id}" target="_blank" class="short-link">
+                <a href="${link.short_url}" target="_blank" class="short-link">
                     🔗 ${link.id}
                 </a>
                 <div class="link-header-buttons">
@@ -298,6 +298,6 @@ function showSuccess(message) {
 }
 
 function getShortUrl(shortId) {
-  // Returns the full short URL for the given short ID
-  return `${window.location.origin}/${shortId}`;
+  // Trỏ thẳng về Backend thay vì Frontend
+  return "https://api-rut-gon.onrender.com/" + shortId;
 }
