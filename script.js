@@ -1,6 +1,4 @@
 // Dynamically set API base URL
-// If frontend and API are on the same Render domain: use relative path
-// If on different domains: set window.API_BASE before this script loads
 const API_BASE = window.API_BASE || "/api";
 
 // DOM Elements
@@ -21,6 +19,40 @@ const errorToast = document.getElementById("errorToast");
 const successToast = document.getElementById("successToast");
 const qrCodeImage = document.getElementById("qrCodeImage");
 const downloadQrBtn = document.getElementById("downloadQrBtn");
+const loadingOverlay = document.getElementById("loadingOverlay");
+const darkModeToggle = document.getElementById("darkModeToggle");
+
+// Dark Mode Setup
+function initDarkMode() {
+  const savedMode = localStorage.getItem("darkMode");
+  if (savedMode === "true") {
+    document.body.classList.add("dark-mode");
+    updateThemeIcon();
+  }
+}
+
+function toggleDarkMode() {
+  document.body.classList.toggle("dark-mode");
+  const isDarkMode = document.body.classList.contains("dark-mode");
+  localStorage.setItem("darkMode", isDarkMode);
+  updateThemeIcon();
+}
+
+function updateThemeIcon() {
+  const isDarkMode = document.body.classList.contains("dark-mode");
+  darkModeToggle.querySelector(".theme-icon").textContent = isDarkMode
+    ? "☀️"
+    : "🌙";
+}
+
+// Loading State
+function showLoading() {
+  loadingOverlay.hidden = false;
+}
+
+function hideLoading() {
+  loadingOverlay.hidden = true;
+}
 
 // Event Listeners
 shortenForm.addEventListener("submit", handleShortenURL);
@@ -29,8 +61,10 @@ newLinkBtn.addEventListener("click", resetForm);
 advancedToggle.addEventListener("click", toggleAdvancedOptions);
 refreshLinksBtn.addEventListener("click", loadAllLinks);
 downloadQrBtn.addEventListener("click", downloadQrCode);
+darkModeToggle.addEventListener("click", toggleDarkMode);
 
 // Initialize
+initDarkMode();
 loadAllLinks();
 
 async function handleShortenURL(e) {
@@ -44,6 +78,8 @@ async function handleShortenURL(e) {
     showError("Vui lòng nhập một URL");
     return;
   }
+
+  showLoading();
 
   try {
     const response = await fetch(`${API_BASE}/shorten`, {
@@ -65,11 +101,13 @@ async function handleShortenURL(e) {
 
     const data = await response.json();
     displayResult(data);
-    showSuccess("Rút gọn URL thành công!");
+    showSuccess("Rút gọn URL thành công! 🎉");
     loadAllLinks();
   } catch (error) {
     console.error("Lỗi:", error);
     showError(error.message);
+  } finally {
+    hideLoading();
   }
 }
 
@@ -100,10 +138,10 @@ function copyToClipboard() {
   navigator.clipboard
     .writeText(text)
     .then(() => {
-      const originalText = copyBtn.textContent;
-      copyBtn.textContent = "✅ Đã sao chép!";
+      const originalText = copyBtn.innerHTML;
+      copyBtn.innerHTML = '<span class="copy-icon">✅</span>';
       setTimeout(() => {
-        copyBtn.textContent = originalText;
+        copyBtn.innerHTML = originalText;
       }, 2000);
     })
     .catch((err) => {
@@ -137,7 +175,7 @@ function downloadQrCode() {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-  showSuccess("Đã tải mã QR xuống!");
+  showSuccess("Đã tải mã QR xuống! ⬇️");
 }
 
 function toggleAdvancedOptions() {
@@ -146,6 +184,7 @@ function toggleAdvancedOptions() {
 }
 
 async function loadAllLinks() {
+  showLoading();
   try {
     const response = await fetch(`${API_BASE}/all`);
 
@@ -158,71 +197,110 @@ async function loadAllLinks() {
   } catch (error) {
     console.error("Lỗi:", error);
     linksList.innerHTML =
-      '<p class="error">Không thể tải danh sách liên kết</p>';
+      '<p class="empty-state">❌ Không thể tải danh sách liên kết. Vui lòng thử lại!</p>';
+  } finally {
+    hideLoading();
   }
 }
 
 function displayLinksList(links) {
   if (links.length === 0) {
     linksList.innerHTML =
-      '<p class="empty-state">Chưa có liên kết nào được tạo. Hãy tạo URL rút gọn đầu tiên ở trên!</p>';
+      '<p class="empty-state">📭 Chưa có liên kết nào được tạo. Hãy tạo URL rút gọn đầu tiên của bạn ở trên!</p>';
     return;
   }
 
-  linksList.innerHTML = links
-    .map(
-      (link) => `
-        <div class="link-card">
-            <div class="link-header">
-                <a href="${link.short_url}" target="_blank" class="short-link">
-                    🔗 ${link.id}
-                </a>
-                <div class="link-header-buttons">
-                  <button class="btn-qr-icon" onclick="showQrModal('${link.qr_code}', '${link.id}')" title="Xem mã QR">
-                      📱
-                  </button>
-                  <button class="btn-copy-small" onclick="copyLink(getShortUrl('${link.id}'))">>
-                      📋
-                  </button>
-                </div>
-            </div>
-            <div class="link-body">
-                <p class="original-url" title="${link.original_url}">
-                    ${link.original_url}
-                </p>
-                <div class="link-meta">
-                    <span class="meta-item">
-                        📅 ${formatDate(link.created_at)}
-                    </span>
-                    <span class="meta-item">
-                        👆 ${link.clicks} lượt nhấp
-                    </span>
-                    ${link.expires_at ? `<span class="meta-item">⏰ ${formatExpiry(link.expires_at)}</span>` : ""}
-                </div>
-            </div>
+  // Create table structure
+  const table = document.createElement("table");
+  table.className = "links-table";
+
+  // Create table header
+  const thead = document.createElement("thead");
+  thead.innerHTML = `
+    <tr>
+      <th>🔗 URL Ngắn</th>
+      <th>📌 URL Gốc</th>
+      <th>👆 Lượt Nhấp</th>
+      <th>📅 Ngày Tạo</th>
+      <th>⏰ Hạn Sử Dụng</th>
+      <th>⚙️ Hành Động</th>
+    </tr>
+  `;
+  table.appendChild(thead);
+
+  // Create table body
+  const tbody = document.createElement("tbody");
+  links.forEach((link) => {
+    const tr = document.createElement("tr");
+    const expiryText = link.expires_at
+      ? formatExpiry(link.expires_at)
+      : "Không giới hạn";
+    tr.innerHTML = `
+      <td>
+        <a href="${link.short_url}" target="_blank" class="table-short-link">
+          ${link.id}
+        </a>
+      </td>
+      <td class="table-original-url" title="${link.original_url}">
+        ${link.original_url}
+      </td>
+      <td>
+        <strong>${link.clicks}</strong>
+      </td>
+      <td>
+        ${formatDate(link.created_at)}
+      </td>
+      <td>
+        <span style="color: ${getExpiryColor(link.expires_at)};">
+          ${expiryText}
+        </span>
+      </td>
+      <td>
+        <div class="table-actions">
+          <button class="action-btn btn-copy-small" onclick="copyLink(getShortUrl('${link.id}'))" title="Sao chép liên kết">
+            📋
+          </button>
+          <button class="action-btn btn-qr-icon" onclick="showQrModal('${link.qr_code}', '${link.id}')" title="Xem mã QR">
+            📱
+          </button>
         </div>
-    `,
-    )
-    .join("");
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+
+  linksList.innerHTML = "";
+  linksList.appendChild(table);
+}
+
+function getExpiryColor(expiresAt) {
+  if (!expiresAt) return "#10b981";
+
+  const expiry = new Date(expiresAt);
+  const now = new Date();
+  const hoursLeft = (expiry - now) / (1000 * 60 * 60);
+
+  if (hoursLeft < 0) return "#ef4444"; // Red - expired
+  if (hoursLeft < 24) return "#f59e0b"; // Amber - expiring soon
+  return "#10b981"; // Green - valid
 }
 
 function showQrModal(qrPath, shortId) {
-  // Create modal overlay
   const modal = document.createElement("div");
   modal.className = "qr-modal-overlay";
   modal.innerHTML = `
     <div class="qr-modal">
       <button class="qr-modal-close" onclick="this.closest('.qr-modal-overlay').remove()">✕</button>
-      <h3>Mã QR cho ${shortId}</h3>
+      <h3>📱 Mã QR cho ${shortId}</h3>
       <img src="${qrPath}" alt="Mã QR" class="qr-modal-image" />
-      <button class="btn btn-primary" onclick="downloadQrFromModal('${qrPath}', '${shortId}')">
+      <button class="btn btn-primary btn-block" onclick="downloadQrFromModal('${qrPath}', '${shortId}')">
         ⬇️ Tải xuống
       </button>
     </div>
   `;
   document.body.appendChild(modal);
 
-  // Close modal on overlay click
   modal.addEventListener("click", (e) => {
     if (e.target === modal) {
       modal.remove();
@@ -237,14 +315,14 @@ function downloadQrFromModal(qrPath, shortId) {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-  showSuccess("Đã tải mã QR xuống!");
+  showSuccess("Đã tải mã QR xuống! 📥");
 }
 
 function copyLink(text) {
   navigator.clipboard
     .writeText(text)
     .then(() => {
-      showSuccess("Đã sao chép liên kết!");
+      showSuccess("Đã sao chép liên kết! ✅");
     })
     .catch((err) => {
       showError("Không thể sao chép liên kết");
@@ -269,20 +347,20 @@ function formatExpiry(expiryString) {
   const diff = expiry - now;
 
   if (diff < 0) {
-    return "Đã hết hạn";
+    return "❌ Đã hết hạn";
   }
 
   const hours = Math.floor(diff / (1000 * 60 * 60));
   if (hours < 24) {
-    return `Hết hạn sau ${hours} giờ`;
+    return `⏰ ${hours} giờ`;
   }
 
   const days = Math.floor(hours / 24);
-  return `Hết hạn sau ${days} ngày`;
+  return `⏰ ${days} ngày`;
 }
 
 function showError(message) {
-  errorToast.textContent = "❌ " + message;
+  errorToast.textContent = message;
   errorToast.hidden = false;
   setTimeout(() => {
     errorToast.hidden = true;
@@ -290,7 +368,7 @@ function showError(message) {
 }
 
 function showSuccess(message) {
-  successToast.textContent = "✅ " + message;
+  successToast.textContent = message;
   successToast.hidden = false;
   setTimeout(() => {
     successToast.hidden = true;
@@ -298,6 +376,5 @@ function showSuccess(message) {
 }
 
 function getShortUrl(shortId) {
-  // Trỏ thẳng về Backend thay vì Frontend
   return "https://api-rut-gon.onrender.com/" + shortId;
 }

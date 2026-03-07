@@ -6,15 +6,39 @@
     <title>Rút Gọn URL - Rút Gọn Liên Kết Của Bạn</title>
     <link rel="stylesheet" href="style.css" />
     <script>
-  // Thay thế URL dưới đây bằng URL Backend Render vừa cấp cho bạn
-  window.API_BASE = "https://api-rut-gon.onrender.com/api";
-</script>
+      // Thay thế URL dưới đây bằng URL Backend Render vừa cấp cho bạn
+      window.API_BASE = "https://api-rut-gon.onrender.com/api";
+    </script>
   </head>
   <body>
+    <div class="theme-toggle">
+      <button id="darkModeToggle" class="theme-btn" title="Toggle Dark Mode">
+        <span class="theme-icon">🌙</span>
+      </button>
+    </div>
+
+    <div class="loading-overlay" id="loadingOverlay" hidden>
+      <div class="spinner"></div>
+    </div>
+
     <div class="container">
-      <header>
-        <h1>🔗 Rút Gọn URL</h1>
-        <p>Tạo các liên kết ngắn gọn, dễ chia sẻ trong vài giây</p>
+      <header class="hero-header">
+        <div class="hero-content">
+          <h1 class="hero-title">🔗 Rút Gọn URL</h1>
+          <p class="hero-subtitle">
+            Tạo các liên kết ngắn gọn, dễ chia sẻ trong vài giây
+          </p>
+          <div class="hero-stats">
+            <div class="hero-stat">
+              <span class="stat-number">1000+</span>
+              <span class="stat-text">Liên kết tạo</span>
+            </div>
+            <div class="hero-stat">
+              <span class="stat-number">50K+</span>
+              <span class="stat-text">Lượt truy cập</span>
+            </div>
+          </div>
+        </div>
       </header>
 
       <main>
@@ -65,64 +89,82 @@
           </form>
         </section>
 
-        <section id="resultSection" class="section result-section" hidden>
-          <h2>URL Đã Rút Gọn Của Bạn</h2>
-          <div class="result-box">
-            <div class="result-item">
-              <label>URL Ngắn:</label>
-              <div class="result-display">
-                <input
-                  type="text"
-                  id="shortUrlDisplay"
-                  readonly
-                  class="result-input"
-                />
-                <button id="copyBtn" class="btn btn-copy">📋 Sao Chép</button>
+        <section
+          id="resultSection"
+          class="section result-section glass-card"
+          hidden
+        >
+          <h2>✨ URL Đã Rút Gọn Của Bạn</h2>
+          <div class="result-grid">
+            <div class="result-card">
+              <div class="result-item">
+                <label class="result-label">🔗 URL Ngắn</label>
+                <div class="result-display">
+                  <input
+                    type="text"
+                    id="shortUrlDisplay"
+                    readonly
+                    class="result-input"
+                  />
+                  <button id="copyBtn" class="btn btn-copy btn-icon">
+                    <span class="copy-icon">📋</span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="result-item">
+                <label class="result-label">📌 URL Gốc</label>
+                <div class="result-display">
+                  <input
+                    type="text"
+                    id="originalUrlDisplay"
+                    readonly
+                    class="result-input"
+                  />
+                </div>
+              </div>
+
+              <div class="result-stats">
+                <div class="stat-item">
+                  <span class="stat-icon">📅</span>
+                  <div>
+                    <div class="stat-label">Đã tạo</div>
+                    <div class="stat-value" id="createdTime">-</div>
+                  </div>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-icon">👆</span>
+                  <div>
+                    <div class="stat-label">Lượt nhấp</div>
+                    <div class="stat-value" id="clickCount">0</div>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div class="result-item">
-              <label>URL Gốc:</label>
-              <div class="result-display">
-                <input
-                  type="text"
-                  id="originalUrlDisplay"
-                  readonly
-                  class="result-input"
-                />
-              </div>
-            </div>
-
-            <div class="result-stats">
-              <div class="stat">
-                <span class="stat-label">Đã tạo:</span>
-                <span class="stat-value" id="createdTime">-</span>
-              </div>
-              <div class="stat">
-                <span class="stat-label">Lượt nhấp:</span>
-                <span class="stat-value" id="clickCount">0</span>
-              </div>
-            </div>
-
-            <div class="qr-section">
-              <h3>Mã QR</h3>
+            <div class="qr-card">
+              <h3 class="qr-title">📱 Mã QR</h3>
               <div class="qr-container">
                 <img id="qrCodeImage" src="" alt="Mã QR" class="qr-image" />
               </div>
-              <button id="downloadQrBtn" class="btn btn-download">
+              <button id="downloadQrBtn" class="btn btn-primary btn-block">
                 ⬇️ Tải Xuống QR
               </button>
             </div>
           </div>
           <button id="newLinkBtn" class="btn btn-secondary">
-            Tạo Liên Kết Khác
+            ➕ Tạo Liên Kết Khác
           </button>
         </section>
 
-        <section class="section links-history">
-          <h2>Các Liên Kết Gần Đây</h2>
-          <button id="refreshLinksBtn" class="btn btn-small">🔄 Làm Mới</button>
-          <div id="linksList" class="links-list">
+        <section class="section links-history glass-card">
+          <div class="history-header">
+            <h2>📊 Dashboard - Các Liên Kết Gần Đây</h2>
+            <button id="refreshLinksBtn" class="btn btn-small">
+              🔄 Làm Mới
+            </button>
+          </div>
+          <div id="linksList" class="links-table-container">
             <p class="empty-state">
               Chưa có liên kết nào được tạo. Hãy tạo URL rút gọn đầu tiên của
               bạn ở trên!
