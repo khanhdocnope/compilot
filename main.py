@@ -117,9 +117,7 @@ def shorten_url():
 
         expires_at = None
         if expire_hours:
-            expires_at = (
-                datetime.now() + timedelta(hours=int(expire_hours))
-            )
+            expires_at = datetime.now() + timedelta(hours=int(expire_hours))
             cursor.execute(
                 "UPDATE urls SET expires_at = %s WHERE short_id = %s",
                 (expires_at, short_id),
@@ -209,8 +207,12 @@ def get_all_urls():
                     "original_url": r["original_url"],
                     "short_url": short_url,
                     "clicks": r["clicks"],
-                    "created_at": r["created_at"].isoformat() if r["created_at"] else None,
-                    "expires_at": r["expires_at"].isoformat() if r["expires_at"] else None,
+                    "created_at": r["created_at"].isoformat()
+                    if r["created_at"]
+                    else None,
+                    "expires_at": r["expires_at"].isoformat()
+                    if r["expires_at"]
+                    else None,
                     "qr_code": qr_code,
                 }
             )
