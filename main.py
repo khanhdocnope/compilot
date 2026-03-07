@@ -82,7 +82,7 @@ def generate_qr_code(url):
     qr_base64 = base64.b64encode(buffered.getvalue()).decode()
     return f"data:image/png;base64,{qr_base64}"
 
-
+@app.route("/shorten", methods=["POST"])
 @app.route("/api/shorten", methods=["POST"])
 def shorten_url():
     # Ensure database is initialized
