@@ -7,19 +7,21 @@ import validators
 from datetime import datetime, timedelta
 import threading
 import qrcode
+import io
+import base64
 from pathlib import Path
 
 app = Flask(__name__)
-CORS(app)
+
+# Configure CORS: Allow specific origins or use environment variable
+# For Render deployment, set FRONTEND_URL environment variable
+frontend_url = os.environ.get("FRONTEND_URL", "*")
+cors_origins = frontend_url if frontend_url != "*" else "*"
+CORS(app, resources={r"/*": {"origins": cors_origins}})
 
 DATABASE = "urls.db"
 BASE62_CHARS = string.digits + string.ascii_lowercase + string.ascii_uppercase
-# Lock for thread-safe ID generation
 id_lock = threading.Lock()
-
-# Create static/qrcodes directory if it doesn't exist
-QRCODE_DIR = Path("static/qrcodes")
-QRCODE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def get_db():
@@ -29,313 +31,150 @@ def get_db():
 
 
 def init_db():
-    if not os.path.exists(DATABASE):
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS urls (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                original_url TEXT NOT NULL,
-                short_id TEXT UNIQUE NOT NULL,
-                custom_alias TEXT UNIQUE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                expires_at TIMESTAMP,
-                clicks INTEGER DEFAULT 0
-            )
-        """)
-        conn.commit()
-        conn.close()
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS urls (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            original_url TEXT NOT NULL,
+            short_id TEXT UNIQUE NOT NULL,
+            custom_alias TEXT UNIQUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            expires_at TIMESTAMP,
+            clicks INTEGER DEFAULT 0
+        )
+    """)
+    conn.commit()
+    conn.close()
 
 
-def base62_encode(num):
-    """Convert a number to base62 string"""
+init_db()
+
+
+def encode_base62(num):
     if num == 0:
         return BASE62_CHARS[0]
-
-    digits = []
+    arr = []
     while num:
-        digits.append(BASE62_CHARS[num % 62])
-        num //= 62
-
-    return "".join(reversed(digits))
-
-
-def base62_decode(s):
-    """Convert a base62 string to number"""
-    result = 0
-    for char in s:
-        result = result * 62 + BASE62_CHARS.index(char)
-    return result
+        num, rem = divmod(num, 62)
+        arr.append(BASE62_CHARS[rem])
+    arr.reverse()
+    return "".join(arr)
 
 
-def get_next_short_id():
-    """Get the next available short ID with thread-safe locking"""
-    with id_lock:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT MAX(id) FROM urls")
-        max_id = cursor.fetchone()[0]
-        conn.close()
-
-        next_id = (max_id or 0) + 1
-        return base62_encode(next_id)
-
-
-def generate_qr_code(short_url, short_id):
-    """Generate QR code image and save to static/qrcodes directory"""
-    try:
-        qr = qrcode.QRCode(
-            version=1,
-            error_correction=qrcode.constants.ERROR_CORRECT_L,
-            box_size=10,
-            border=4,
-        )
-        qr.add_data(short_url)
-        qr.make(fit=True)
-
-        img = qr.make_image(fill_color="black", back_color="white")
-
-        # Save QR code image
-        qr_path = QRCODE_DIR / f"{short_id}.png"
-        img.save(qr_path)
-
-        # Return the relative path for frontend
-        return f"/static/qrcodes/{short_id}.png"
-    except Exception as e:
-        print(f"Error generating QR code: {e}")
-        return None
+def generate_qr_code(url):
+    """Generate QR code as base64 string"""
+    qr = qrcode.make(url)
+    buffered = io.BytesIO()
+    qr.save(buffered, format="PNG")
+    qr_base64 = base64.b64encode(buffered.getvalue()).decode()
+    return f"data:image/png;base64,{qr_base64}"
 
 
 @app.route("/api/shorten", methods=["POST"])
 def shorten_url():
-    """Shorten a URL with validation and concurrency handling"""
-    data = request.get_json()
-    original_url = data.get("url", "").strip()
-    custom_alias = data.get("custom_alias", "").strip()
-    expiration_hours = data.get("expiration_hours", 0)
+    data = request.json
+    original_url = data.get("url")
+    custom_alias = data.get("custom_alias")
+    expire_hours = data.get("expire_hours")
 
-    # Validate URL input
-    if not original_url:
-        return jsonify({"error": "URL is required"}), 400
+    if not original_url or not validators.url(original_url):
+        return jsonify({"error": "URL không hợp lệ"}), 400
 
-    # Add http:// if not present
-    if not original_url.startswith(("http://", "https://")):
-        original_url = "https://" + original_url
-
-    # Validate URL format using validators library
-    if not validators.url(original_url):
-        return jsonify({"error": "Invalid URL format"}), 400
-
-    try:
-        conn = get_db()
-        cursor = conn.cursor()
-
-        # Check if custom alias is provided
-        if custom_alias:
-            # Validate custom alias (alphanumeric and hyphens only, 3-30 chars)
-            if not (3 <= len(custom_alias) <= 30):
-                return jsonify(
-                    {"error": "Custom alias must be 3-30 characters long"}
-                ), 400
-
-            if not all(c.isalnum() or c == "-" for c in custom_alias):
-                return jsonify(
-                    {
-                        "error": "Custom alias can only contain letters, numbers, and hyphens"
-                    }
-                ), 400
-
-            if custom_alias[0] == "-" or custom_alias[-1] == "-":
-                return jsonify(
-                    {"error": "Custom alias cannot start or end with a hyphen"}
-                ), 400
-
-            # Check if custom alias already exists
-            cursor.execute(
-                "SELECT short_id FROM urls WHERE custom_alias = ? OR short_id = ?",
-                (custom_alias, custom_alias),
-            )
-            if cursor.fetchone():
-                return jsonify({"error": "This alias is already taken"}), 409
-
-            short_id = custom_alias
-        else:
-            # Generate automatic short ID with retry logic for concurrency
-            max_retries = 3
-            for attempt in range(max_retries):
-                short_id = get_next_short_id()
-                try:
-                    # Try to insert - will fail if ID already exists due to race condition
-                    cursor.execute(
-                        """
-                        INSERT INTO urls (original_url, short_id, custom_alias, expires_at)
-                        VALUES (?, ?, ?, ?)
-                    """,
-                        (
-                            original_url,
-                            short_id,
-                            None,
-                            calculate_expiration_time(expiration_hours),
-                        ),
-                    )
-                    conn.commit()
-                    break
-                except sqlite3.IntegrityError:
-                    if attempt == max_retries - 1:
-                        conn.close()
-                        return jsonify(
-                            {
-                                "error": "Failed to generate unique short ID after retries"
-                            }
-                        ), 500
-                    continue
-
-        if custom_alias:
-            # For custom alias, calculate expiration and insert
-            expires_at = calculate_expiration_time(expiration_hours)
-            try:
-                cursor.execute(
-                    """
-                    INSERT INTO urls (original_url, short_id, custom_alias, expires_at)
-                    VALUES (?, ?, ?, ?)
-                """,
-                    (original_url, short_id, custom_alias, expires_at),
-                )
-                conn.commit()
-            except sqlite3.IntegrityError:
-                conn.close()
-                return jsonify({"error": "This alias is already taken"}), 409
-
-        conn.close()
-
-        # Generate QR code for the short URL
-       
-        short_url = f"http://localhost:5000/{short_id}"
-        qr_code_path = generate_qr_code(short_url, short_id)
-
-        return jsonify(
-            {
-                "short_id": short_id,
-                "original_url": original_url,
-                "short_url": short_url,
-                "qr_code": qr_code_path,
-            }
-        ), 201
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-def calculate_expiration_time(expiration_hours):
-    """Calculate expiration timestamp"""
-    if expiration_hours > 0:
-        return (datetime.now() + timedelta(hours=expiration_hours)).isoformat()
-    return None
-
-
-@app.route("/api/stats/<short_id>", methods=["GET"])
-def get_stats(short_id):
-    """Get statistics for a shortened URL"""
     conn = get_db()
     cursor = conn.cursor()
 
-    cursor.execute(
-        """
-        SELECT original_url, created_at, clicks, expires_at
-        FROM urls 
-        WHERE short_id = ? OR custom_alias = ?
-    """,
-        (short_id, short_id),
-    )
+    if custom_alias:
+        cursor.execute("SELECT id FROM urls WHERE custom_alias = ?", (custom_alias,))
+        if cursor.fetchone():
+            return jsonify({"error": "Alias đã tồn tại"}), 400
+        short_id = custom_alias
+    else:
+        with id_lock:
+            cursor.execute(
+                "INSERT INTO urls (original_url) VALUES (?)", (original_url,)
+            )
+            last_id = cursor.lastrowid
+            short_id = encode_base62(last_id + 100000)
+            cursor.execute(
+                "UPDATE urls SET short_id = ? WHERE id = ?", (short_id, last_id)
+            )
 
-    row = cursor.fetchone()
+    expires_at = None
+    if expire_hours:
+        expires_at = (datetime.now() + timedelta(hours=int(expire_hours))).isoformat()
+        cursor.execute(
+            "UPDATE urls SET expires_at = ? WHERE short_id = ?", (expires_at, short_id)
+        )
+
+    conn.commit()
+
+    # Tạo QR code dưới dạng Base64 (Để tránh mất file trên Render)
+    full_short_url = f"{request.host_url}{short_id}"
+    qr_code = generate_qr_code(full_short_url)
+
     conn.close()
-
-    if not row:
-        return jsonify({"error": "Short URL not found"}), 404
-
     return jsonify(
         {
-            "original_url": row["original_url"],
-            "created_at": row["created_at"],
-            "clicks": row["clicks"],
-            "expires_at": row["expires_at"],
+            "short_id": short_id,
+            "short_url": full_short_url,
+            "original_url": original_url,
+            "qr_code": qr_code,
+            "expires_at": expires_at,
         }
-    ), 200
-
-
-@app.route("/<short_id>", methods=["GET"])
-def redirect_url(short_id):
-    """Redirect to original URL"""
-    conn = get_db()
-    cursor = conn.cursor()
-
-    cursor.execute(
-        """
-        SELECT original_url, expires_at FROM urls 
-        WHERE short_id = ? OR custom_alias = ?
-    """,
-        (short_id, short_id),
     )
 
+
+@app.route("/<short_id>")
+def redirect_to_url(short_id):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT original_url, expires_at FROM urls WHERE short_id = ? OR custom_alias = ?",
+        (short_id, short_id),
+    )
     row = cursor.fetchone()
 
     if not row:
-        conn.close()
-        return "Short URL not found", 404
+        return "URL không tồn tại", 404
 
-    # Check if link has expired
-    if row["expires_at"]:
-        if datetime.fromisoformat(row["expires_at"]) < datetime.now():
-            conn.close()
-            return "This link has expired", 410
+    if row["expires_at"] and datetime.fromisoformat(row["expires_at"]) < datetime.now():
+        return "Liên kết đã hết hạn", 410
 
-    # Increment click count
     cursor.execute(
-        "UPDATE urls SET clicks = clicks + 1 WHERE short_id = ? OR custom_alias = ?",
-        (short_id, short_id),
+        "UPDATE urls SET clicks = clicks + 1 WHERE short_id = ?", (short_id,)
     )
     conn.commit()
     conn.close()
-
-    return redirect(row["original_url"], code=301)
+    return redirect(row["original_url"])
 
 
 @app.route("/api/all", methods=["GET"])
 def get_all_urls():
-    """Get all shortened URLs"""
     conn = get_db()
     cursor = conn.cursor()
-
-    cursor.execute("""
-        SELECT short_id, custom_alias, original_url, created_at, clicks, expires_at
-        FROM urls
-        ORDER BY created_at DESC
-    """)
-
+    cursor.execute("SELECT * FROM urls ORDER BY created_at DESC")
     rows = cursor.fetchall()
     conn.close()
 
-    urls = []
-    for row in rows:
-        short_id = row["custom_alias"] or row["short_id"]
-        qr_code_path = f"/static/qrcodes/{short_id}.png"
-        urls.append(
+    result = []
+    for r in rows:
+        short_url = f"{request.host_url}{r['short_id']}"
+        qr_code = generate_qr_code(short_url)
+        result.append(
             {
-                "id": short_id,
-                "short_id": row["short_id"],
-                "custom_alias": row["custom_alias"],
-                "original_url": row["original_url"],
-                "created_at": row["created_at"],
-                "clicks": row["clicks"],
-                "expires_at": row["expires_at"],
-                "qr_code": qr_code_path,
+                "id": r["short_id"],
+                "original_url": r["original_url"],
+                "short_url": short_url,
+                "clicks": r["clicks"],
+                "created_at": r["created_at"],
+                "expires_at": r["expires_at"],
+                "qr_code": qr_code,
             }
         )
-
-    return jsonify(urls), 200
+    return jsonify(result)
 
 
 if __name__ == "__main__":
-    init_db()
-    app.run(debug=True, port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)

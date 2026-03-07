@@ -1,4 +1,7 @@
-const API_BASE = "http://localhost:5000/api"; 
+// Dynamically set API base URL
+// If frontend and API are on the same Render domain: use relative path
+// If on different domains: set window.API_BASE before this script loads
+const API_BASE = window.API_BASE || "/api";
 
 // DOM Elements
 const shortenForm = document.getElementById("shortenForm");
@@ -51,7 +54,7 @@ async function handleShortenURL(e) {
       body: JSON.stringify({
         url: url,
         custom_alias: customAlias,
-        expiration_hours: expirationHours,
+        expire_hours: expirationHours,
       }),
     });
 
@@ -171,14 +174,14 @@ function displayLinksList(links) {
       (link) => `
         <div class="link-card">
             <div class="link-header">
-                <a href="http://localhost:5000/${link.id}" target="_blank" class="short-link">
+                <a href="/${link.id}" target="_blank" class="short-link">
                     🔗 ${link.id}
                 </a>
                 <div class="link-header-buttons">
                   <button class="btn-qr-icon" onclick="showQrModal('${link.qr_code}', '${link.id}')" title="Xem mã QR">
                       📱
                   </button>
-                  <button class="btn-copy-small" onclick="copyLink('http://localhost:5000/${link.id}')">
+                  <button class="btn-copy-small" onclick="copyLink(getShortUrl('${link.id}'))">>
                       📋
                   </button>
                 </div>
@@ -292,4 +295,9 @@ function showSuccess(message) {
   setTimeout(() => {
     successToast.hidden = true;
   }, 3000);
+}
+
+function getShortUrl(shortId) {
+  // Returns the full short URL for the given short ID
+  return `${window.location.origin}/${shortId}`;
 }
