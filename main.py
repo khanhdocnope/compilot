@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, redirect
 from flask_cors import CORS
-import sqlite3
+import psycopg2
+from psycopg2.extras import RealDictCursor
 import string
 import os
 import validators
@@ -9,7 +10,6 @@ import threading
 import qrcode
 import io
 import base64
-from pathlib import Path
 
 app = Flask(__name__)
 
@@ -18,14 +18,17 @@ app = Flask(__name__)
 frontend_url = os.environ.get("FRONTEND_URL", "https://rut-gon-link-r3jo.onrender.com")
 CORS(app, resources={r"/*": {"origins": frontend_url}})
 
-DATABASE = "urls.db"
+DATABASE_URL = os.environ.get(
+    "DATABASE_URL",
+    "postgresql://data_ze7e_user:ysxA2hJOXfmXauH4nDwxyo4qt8V7yfBk@dpg-d6lql8fgi27c73dorqmg-a/data_ze7e",
+)
 BASE62_CHARS = string.digits + string.ascii_lowercase + string.ascii_uppercase
 id_lock = threading.Lock()
 
 
 def get_db():
-    conn = sqlite3.connect(DATABASE)
-    conn.row_factory = sqlite3.Row
+    conn = psycopg2.connect(DATABASE_URL)
+    conn.cursor_factory = RealDictCursor
     return conn
 
 
@@ -34,7 +37,7 @@ def init_db():
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS urls (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             original_url TEXT NOT NULL,
             short_id TEXT UNIQUE NOT NULL,
             custom_alias TEXT UNIQUE,
@@ -44,6 +47,7 @@ def init_db():
         )
     """)
     conn.commit()
+    cursor.close()
     conn.close()
 
 
@@ -84,26 +88,30 @@ def shorten_url():
     cursor = conn.cursor()
 
     if custom_alias:
-        cursor.execute("SELECT id FROM urls WHERE custom_alias = ?", (custom_alias,))
+        cursor.execute("SELECT id FROM urls WHERE custom_alias = %s", (custom_alias,))
         if cursor.fetchone():
+            cursor.close()
+            conn.close()
             return jsonify({"error": "Alias đã tồn tại"}), 400
         short_id = custom_alias
     else:
         with id_lock:
             cursor.execute(
-                "INSERT INTO urls (original_url) VALUES (?)", (original_url,)
+                "INSERT INTO urls (original_url) VALUES (%s) RETURNING id",
+                (original_url,),
             )
-            last_id = cursor.lastrowid
+            last_id = cursor.fetchone()["id"]
             short_id = encode_base62(last_id + 100000)
             cursor.execute(
-                "UPDATE urls SET short_id = ? WHERE id = ?", (short_id, last_id)
+                "UPDATE urls SET short_id = %s WHERE id = %s", (short_id, last_id)
             )
 
     expires_at = None
     if expire_hours:
         expires_at = (datetime.now() + timedelta(hours=int(expire_hours))).isoformat()
         cursor.execute(
-            "UPDATE urls SET expires_at = ? WHERE short_id = ?", (expires_at, short_id)
+            "UPDATE urls SET expires_at = %s WHERE short_id = %s",
+            (expires_at, short_id),
         )
 
     conn.commit()
@@ -112,6 +120,7 @@ def shorten_url():
     full_short_url = f"{request.host_url}{short_id}"
     qr_code = generate_qr_code(full_short_url)
 
+    cursor.close()
     conn.close()
     return jsonify(
         {
@@ -129,21 +138,26 @@ def redirect_to_url(short_id):
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT original_url, expires_at FROM urls WHERE short_id = ? OR custom_alias = ?",
+        "SELECT original_url, expires_at FROM urls WHERE short_id = %s OR custom_alias = %s",
         (short_id, short_id),
     )
     row = cursor.fetchone()
 
     if not row:
+        cursor.close()
+        conn.close()
         return "URL không tồn tại", 404
 
     if row["expires_at"] and datetime.fromisoformat(row["expires_at"]) < datetime.now():
+        cursor.close()
+        conn.close()
         return "Liên kết đã hết hạn", 410
 
     cursor.execute(
-        "UPDATE urls SET clicks = clicks + 1 WHERE short_id = ?", (short_id,)
+        "UPDATE urls SET clicks = clicks + 1 WHERE short_id = %s", (short_id,)
     )
     conn.commit()
+    cursor.close()
     conn.close()
     return redirect(row["original_url"])
 
@@ -154,6 +168,7 @@ def get_all_urls():
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM urls ORDER BY created_at DESC")
     rows = cursor.fetchall()
+    cursor.close()
     conn.close()
 
     result = []
