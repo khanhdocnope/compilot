@@ -119,7 +119,7 @@ def shorten_url():
         if expire_hours:
             expires_at = (
                 datetime.now() + timedelta(hours=int(expire_hours))
-            ).isoformat()
+            )
             cursor.execute(
                 "UPDATE urls SET expires_at = %s WHERE short_id = %s",
                 (expires_at, short_id),
@@ -139,7 +139,7 @@ def shorten_url():
                 "short_url": full_short_url,
                 "original_url": original_url,
                 "qr_code": qr_code,
-                "expires_at": expires_at,
+                "expires_at": expires_at.isoformat() if expires_at else None,
             }
         )
     except Exception as e:
@@ -169,10 +169,7 @@ def redirect_to_url(short_id):
         if not row:
             return "URL không tồn tại", 404
 
-        if (
-            row["expires_at"]
-            and datetime.fromisoformat(row["expires_at"]) < datetime.now()
-        ):
+        if row["expires_at"] and row["expires_at"] < datetime.now():
             return "Liên kết đã hết hạn", 410
 
         cursor.execute(
@@ -212,8 +209,8 @@ def get_all_urls():
                     "original_url": r["original_url"],
                     "short_url": short_url,
                     "clicks": r["clicks"],
-                    "created_at": r["created_at"],
-                    "expires_at": r["expires_at"],
+                    "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+                    "expires_at": r["expires_at"].isoformat() if r["expires_at"] else None,
                     "qr_code": qr_code,
                 }
             )
