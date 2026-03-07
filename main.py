@@ -18,10 +18,9 @@ app = Flask(__name__)
 frontend_url = os.environ.get("FRONTEND_URL", "https://rut-gon-link-r3jo.onrender.com")
 CORS(app, resources={r"/*": {"origins": frontend_url}})
 
-DATABASE_URL = os.environ.get(
-    "DATABASE_URL",
-    "postgresql://data_ze7e_user:ysxA2hJOXfmXauH4nDwxyo4qt8V7yfBk@dpg-d6lql8fgi27c73dorqmg-a/data_ze7e",
-)
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL environment variable is required. Please set it on Render.")
 BASE62_CHARS = string.digits + string.ascii_lowercase + string.ascii_uppercase
 id_lock = threading.Lock()
 
@@ -29,38 +28,30 @@ id_lock = threading.Lock()
 def get_db():
     conn = psycopg2.connect(DATABASE_URL)
     conn.cursor_factory = RealDictCursor
+    # Ensure table exists before returning connection
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS urls (
+                id SERIAL PRIMARY KEY,
+                original_url TEXT NOT NULL,
+                short_id TEXT UNIQUE NOT NULL,
+                custom_alias TEXT UNIQUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMP,
+                clicks INTEGER DEFAULT 0
+            )
+        """)
+        conn.commit()
+        cursor.close()
+    except Exception as e:
+        conn.rollback()
+        conn.close()
+        raise e
     return conn
 
 
-def init_db():
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS urls (
-            id SERIAL PRIMARY KEY,
-            original_url TEXT NOT NULL,
-            short_id TEXT UNIQUE NOT NULL,
-            custom_alias TEXT UNIQUE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            expires_at TIMESTAMP,
-            clicks INTEGER DEFAULT 0
-        )
-    """)
-    conn.commit()
-    cursor.close()
-    conn.close()
 
-
-# Initialize database on startup, but don't fail if connection not ready
-def safe_init_db():
-    try:
-        init_db()
-    except Exception as e:
-        print(f"Database initialization deferred: {e}")
-
-
-# Try to initialize on startup
-safe_init_db()
 
 
 def encode_base62(num):
@@ -82,14 +73,12 @@ def generate_qr_code(url):
     qr_base64 = base64.b64encode(buffered.getvalue()).decode()
     return f"data:image/png;base64,{qr_base64}"
 
-@app.route("/shorten", methods=["POST"])
 @app.route("/api/shorten", methods=["POST"])
 def shorten_url():
-    # Ensure database is initialized
-    safe_init_db()
+    # Database table will be auto-initialized via get_db()
     data = request.json
     original_url = data.get("url")
-    custom_alias = data.get("custom_alias")
+    custom_alias = data.get("custom_alias") or None  # Convert empty string to None
     expire_hours = data.get("expire_hours")
 
     if not original_url or not validators.url(original_url):
@@ -101,20 +90,24 @@ def shorten_url():
         conn = get_db()
         cursor = conn.cursor()
 
-        if custom_alias:
-            cursor.execute(
-                "SELECT id FROM urls WHERE custom_alias = %s", (custom_alias,)
-            )
-            if cursor.fetchone():
-                cursor.close()
-                conn.close()
-                return jsonify({"error": "Alias đã tồn tại"}), 400
-            short_id = custom_alias
-        else:
-            with id_lock:
+        with id_lock:
+            if custom_alias:
                 cursor.execute(
-                    "INSERT INTO urls (original_url) VALUES (%s) RETURNING id",
-                    (original_url,),
+                    "SELECT id FROM urls WHERE custom_alias = %s", (custom_alias,)
+                )
+                if cursor.fetchone():
+                    return jsonify({"error": "Alias đã tồn tại"}), 400
+                # Insert with custom alias
+                cursor.execute(
+                    "INSERT INTO urls (original_url, short_id, custom_alias) VALUES (%s, %s, %s)",
+                    (original_url, custom_alias, custom_alias),
+                )
+                short_id = custom_alias
+            else:
+                # Insert without custom alias, let system generate short_id
+                cursor.execute(
+                    "INSERT INTO urls (original_url, custom_alias) VALUES (%s, %s) RETURNING id",
+                    (original_url, None),
                 )
                 last_id = cursor.fetchone()["id"]
                 short_id = encode_base62(last_id + 100000)
