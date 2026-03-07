@@ -184,7 +184,6 @@ function toggleAdvancedOptions() {
 }
 
 async function loadAllLinks() {
-  showLoading();
   try {
     const response = await fetch(`${API_BASE}/all`);
 
@@ -198,8 +197,6 @@ async function loadAllLinks() {
     console.error("Lỗi:", error);
     linksList.innerHTML =
       '<p class="empty-state">❌ Không thể tải danh sách liên kết. Vui lòng thử lại!</p>';
-  } finally {
-    hideLoading();
   }
 }
 
