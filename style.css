@@ -1166,3 +1166,7 @@ body.dark-mode .links-table {
     width: 100%;
   }
 }
+/* đảm bảo hidden thực sự ẩn overlay */
+.loading-overlay[hidden] {
+  display: none !important;
+}
