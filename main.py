@@ -15,9 +15,8 @@ app = Flask(__name__)
 
 # Configure CORS: Allow specific origins or use environment variable
 # For Render deployment, set FRONTEND_URL environment variable
-frontend_url = os.environ.get("FRONTEND_URL", "*")
-cors_origins = frontend_url if frontend_url != "*" else "*"
-CORS(app, resources={r"/*": {"origins": cors_origins}})
+frontend_url = os.environ.get("FRONTEND_URL", "https://rut-gon-link-r3jo.onrender.com")
+CORS(app, resources={r"/*": {"origins": frontend_url}})
 
 DATABASE = "urls.db"
 BASE62_CHARS = string.digits + string.ascii_lowercase + string.ascii_uppercase
