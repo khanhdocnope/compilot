@@ -102,7 +102,9 @@ def shorten_url():
         cursor = conn.cursor()
 
         if custom_alias:
-            cursor.execute("SELECT id FROM urls WHERE custom_alias = %s", (custom_alias,))
+            cursor.execute(
+                "SELECT id FROM urls WHERE custom_alias = %s", (custom_alias,)
+            )
             if cursor.fetchone():
                 cursor.close()
                 conn.close()
@@ -122,7 +124,9 @@ def shorten_url():
 
         expires_at = None
         if expire_hours:
-            expires_at = (datetime.now() + timedelta(hours=int(expire_hours))).isoformat()
+            expires_at = (
+                datetime.now() + timedelta(hours=int(expire_hours))
+            ).isoformat()
             cursor.execute(
                 "UPDATE urls SET expires_at = %s WHERE short_id = %s",
                 (expires_at, short_id),
@@ -172,7 +176,10 @@ def redirect_to_url(short_id):
         if not row:
             return "URL không tồn tại", 404
 
-        if row["expires_at"] and datetime.fromisoformat(row["expires_at"]) < datetime.now():
+        if (
+            row["expires_at"]
+            and datetime.fromisoformat(row["expires_at"]) < datetime.now()
+        ):
             return "Liên kết đã hết hạn", 410
 
         cursor.execute(
